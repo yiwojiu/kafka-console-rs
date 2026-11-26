@@ -25,12 +25,14 @@ jobs:
             archive: zip
           # Linux 用 musl 静态链接：产出的二进制不依赖目标机的 glibc 版本，
           # 老系统（CentOS 7 / 麒麟 V10 之类）也能直接跑。
+          # 统一在 ubuntu-latest 上用 cargo-zigbuild 交叉编译，zig 自带 libc，
+          # 不用装 musl-gcc（arm64 上本来就没有这个包装器）。
           - name: linux-x64
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             archive: tar.gz
           - name: linux-arm64
-            os: ubuntu-24.04-arm
+            os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             archive: tar.gz
 
@@ -57,25 +59,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake perl pkg-config musl-tools
-          musl-gcc --version | head -1
+          sudo apt-get install -y build-essential cmake perl pkg-config
 
-      # musl 目标必须让 cc / cmake 都用 musl-gcc，否则 librdkafka 和 OpenSSL
-      # 会被按 glibc 编译，最后链接时报一堆 undefined reference。
-      - name: Point toolchain at musl
+      # cargo-zigbuild：用 zig 自带的 libc 做交叉编译，一条命令出 musl 二进制，
+      # 不碰系统的 gcc / musl-gcc。
+      - name: Install cargo-zigbuild (Linux)
         if: runner.os == 'Linux'
-        run: |
-          set -eu
-          t="${{ matrix.target }}"
-          u="${t//-/_}"
-          echo "CC_${u}=musl-gcc" >> "$GITHUB_ENV"
-          echo "AR_${u}=ar" >> "$GITHUB_ENV"
-          echo "RANLIB_${u}=ranlib" >> "$GITHUB_ENV"
-          upper=$(printf '%s' "$u" | tr 'a-z' 'A-Z')
-          echo "CARGO_TARGET_${upper}_LINKER=musl-gcc" >> "$GITHUB_ENV"
-          if command -v musl-g++ > /dev/null; then
-            echo "CXX_${u}=musl-g++" >> "$GITHUB_ENV"
-          fi
+        run: pipx install cargo-zigbuild || pip install --user cargo-zigbuild
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -83,25 +73,10 @@ jobs:
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        shell: bash
         run: |
-          # 注意：Actions 的 bash 默认带 -e -o pipefail，失败会立即中断脚本，
-          # 所以这里先 set +e 关掉，拿到退出码后才能上报错误。
-          set +e
-          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee build.log
-          st="${PIPESTATUS[0]}"
-          if [ "$st" -ne 0 ]; then
-            excerpt=$(grep -v -e '^\s*Compiling ' -e '^\s*Downloaded ' build.log | tail -100)
-            {
-              echo "### build ${{ matrix.name }} failed"
-              echo '```'
-              printf '%s\n' "$excerpt"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-              -f body="$(printf 'build %s failed\n```\n%s\n```' '${{ matrix.name }}' "$excerpt")" > /dev/null || true
-            exit "$st"
-          fi
+          # pipx 装到 ~/.local/bin，确保在 PATH 里
+          export PATH="$HOME/.local/bin:$PATH"
+          cargo zigbuild --release --locked --target ${{ matrix.target }}
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
