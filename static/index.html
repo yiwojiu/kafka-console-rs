@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Console · Rust</title>
+<style>
+  :root { --bg:#f7f8fa; --card:#fff; --line:#e5e7eb; --text:#1f2937; --muted:#6b7280; --accent:#2563eb; --danger:#dc2626; --ok:#059669; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); font-size:14px; }
+  header { background:#111827; color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; font-weight:600; margin:0; letter-spacing:.3px; }
+  header .spacer { flex:1; }
+  header select { background:#1f2937; color:#fff; border:1px solid #4b5563; border-radius:6px; padding:6px 10px; font-size:13px; min-width:150px; }
+  .tabs { display:flex; background:#fff; border-bottom:1px solid var(--line); padding:0 24px; }
+  .tab { padding:12px 18px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; user-select:none; }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  main { padding:20px 24px; max-width:1400px; margin:0 auto; }
+  .panel { display:none; } .panel.active { display:block; }
+  .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar input,.toolbar select { border:1px solid var(--line); border-radius:6px; padding:7px 10px; font-size:13px; background:#fff; }
+  .toolbar input[type=checkbox] { width:15px; height:15px; padding:0; margin:0; accent-color:var(--accent); cursor:pointer; }
+  .follow-label { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--text); cursor:pointer; user-select:none; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:13px; }
+  button:hover { opacity:.9; } button:disabled { opacity:.5; cursor:not-allowed; }
+  button.ghost { background:#fff; color:var(--text); border:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:8px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { background:#f9fafb; color:var(--muted); font-weight:600; font-size:12px; }
+  tr:last-child td { border-bottom:0; }
+  tr:hover td { background:#fafbff; }
+  tr.clickable { cursor:pointer; }
+  .link { color:var(--accent); }
+  tr.clickable:hover .link { text-decoration:underline; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .lag-high { color:var(--danger); font-weight:600; } .lag-zero { color:var(--ok); }
+  .state { font-size:11px; padding:2px 7px; border-radius:10px; background:#eef2ff; color:#4338ca; }
+  .hint { color:var(--muted); font-size:12px; margin:8px 0 14px; }
+  .empty { padding:40px; text-align:center; color:var(--muted); background:var(--card); border-radius:8px; }
+  #message-list { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:12px; max-height:620px; overflow:auto; font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; min-height:200px; }
+  .msg { border-bottom:1px solid #1e293b; padding:7px 4px; }
+  .msg-head { color:#64748b; margin-bottom:3px; }
+  .msg-key { color:#fbbf24; } .msg-val { color:#93c5fd; word-break:break-all; white-space:pre-wrap; }
+  .detail { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-top:12px; }
+  .detail h3 { margin:0 0 12px; font-size:14px; }
+  .detail-head { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .detail-head h3 { margin:0; }
+  .detail-head .spacer { flex:1; }
+  button.sm { padding:5px 11px; font-size:12px; }
+  button.danger { background:#fee2e2; color:var(--danger); border:1px solid #fecaca; }
+  button.danger:hover { background:#fecaca; }
+  .subtabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+  .subtab { padding:8px 14px; cursor:pointer; color:var(--muted); font-size:13px; border-bottom:2px solid transparent; user-select:none; }
+  .subtab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  .op-cell { display:flex; gap:6px; }
+  .op-cell button { padding:4px 9px; font-size:12px; }
+  .modal-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; z-index:100; }
+  .modal-mask.open { display:flex; }
+  .modal { background:#fff; border-radius:10px; padding:20px; width:460px; max-width:92vw; box-shadow:0 20px 50px rgba(15,23,42,.3); }
+  .modal.wide { width:760px; }
+  .modal h3 { margin:0 0 12px; font-size:15px; }
+  .modal input { width:100%; border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:13px; margin-top:6px; }
+  .modal-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+  .warn-box { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:6px; padding:10px 12px; font-size:12px; line-height:1.6; margin-bottom:12px; }
+  .tbl-note { color:var(--muted); font-size:12px; margin-top:8px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:9px; background:#eef2ff; color:#4338ca; margin-left:6px; }
+  .tag.warn { background:#fef3c7; color:#92400e; }
+  .tag.ok { background:#d1fae5; color:#065f46; }
+  .spinner { display:inline-block; width:13px; height:13px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .err { color:var(--danger); font-size:12px; margin-top:6px; }
+  .combo { position:relative; display:inline-block; }
+  .combo input { width:240px; border:1px solid var(--line); border-radius:6px; padding:7px 10px; font-size:13px; background:#fff; color:var(--text); }
+  .combo input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  .combo-list { position:absolute; top:calc(100% + 4px); left:0; width:340px; max-height:280px; overflow:auto; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(15,23,42,.14); z-index:50; display:none; padding:4px; }
+  .combo-list.open { display:block; }
+  .combo-item { padding:7px 10px; border-radius:5px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .combo-item:hover,.combo-item.active { background:#eff6ff; color:var(--accent); }
+  .combo-item .mark { color:var(--accent); font-weight:600; }
+  .combo-empty { padding:10px; color:var(--muted); font-size:12px; }
+  code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:12px; }
+  /* 概览卡片：固定 1/2/4 列。卡片共 8 张，只在这些列数下才不会被挤成孤行 */
+  .cards { display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:6px; }
+  @media (min-width:640px)  { .cards { grid-template-columns:repeat(2,1fr); } }
+  @media (min-width:1024px) { .cards { grid-template-columns:repeat(4,1fr); } }
+  .card { display:flex; flex-direction:column; min-width:0; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .card .k { font-size:12px; color:var(--muted); }
+  .card .v { font-size:20px; font-weight:600; margin-top:5px; font-variant-numeric:tabular-nums; letter-spacing:-.2px; line-height:1.3; overflow-wrap:anywhere; }
+  /* 副标题贴底：卡片等高时底部自然对齐，不会出现半空一截的观感 */
+  .card .s { font-size:11px; color:var(--muted); margin-top:auto; padding-top:6px; line-height:1.4; overflow-wrap:anywhere; }
+  .card.alert { border-color:#fecaca; background:#fef2f2; }
+  .card.alert .v { color:var(--danger); }
+  .card.alert .s { color:#b91c1c; }
+  .sec-title { font-size:13px; margin:20px 0 8px; color:var(--muted); font-weight:600; }
+  .bar-wrap { background:#f1f5f9; border-radius:3px; height:6px; min-width:60px; overflow:hidden; }
+  .bar { background:var(--accent); height:100%; border-radius:3px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .chip { font-size:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:4px 11px; }
+  .chip b { font-variant-numeric:tabular-nums; }
+  textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:13px; font-family:"SFMono-Regular",Consolas,monospace; resize:vertical; }
+  textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+
+  /* ===== 集群管理 ===== */
+  .hdr-btn { border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.1); color:#e8eaf2; border-radius:6px; padding:6px 11px; font-size:12px; cursor:pointer; }
+  .hdr-btn:hover { background:rgba(255,255,255,.2); color:#fff; }
+  #cm-list { border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:16px; }
+  #cm-list .cm-empty { padding:22px; text-align:center; color:var(--muted); font-size:13px; }
+  .cm-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); font-size:13px; }
+  .cm-row:last-child { border-bottom:none; }
+  .cm-row.cur { background:#f5f8ff; }
+  .cm-name { font-weight:600; min-width:96px; }
+  .cm-addr { flex:1; min-width:0; color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-proto { font-size:11px; padding:1px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; white-space:nowrap; }
+  .cm-proto.tls { background:#ecfdf5; color:#047857; }
+  .cm-form-title { font-size:12px; color:var(--muted); margin:0 0 8px; }
+  .cm-form { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .cm-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .cm-field input, .cm-field select { width:100%; border:1px solid var(--line); border-radius:6px; padding:7px 9px; font-size:13px; margin-top:0; background:#fff; }
+  .cm-field input:focus, .cm-field select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  .cm-field.full { grid-column:1 / -1; }
+  .cm-field.hide { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 title="Rust + rdkafka 实现">Kafka Console</h1>
+  <span class="spacer"></span>
+  <label style="font-size:12px;color:#9ca3af">集群</label>
+  <select id="cluster"></select>
+  <button id="btn-cluster-mgr" class="hdr-btn" title="添加、编辑、删除 Kafka 集群连接">集群管理</button>
+</header>
+<div class="tabs">
+  <div class="tab active" data-panel="overview">概览</div>
+  <div class="tab" data-panel="topics">Topic</div>
+  <div class="tab" data-panel="groups">消费组 / 积压</div>
+  <div class="tab" data-panel="messages">消息浏览</div>
+</div>
+<main>
+  <div class="panel active" id="panel-overview">
+    <div class="toolbar">
+      <button id="btn-overview">刷新概览</button>
+      <span id="overview-status" class="hint" style="margin:0"></span>
+    </div>
+    <div id="overview-cards" class="cards"></div>
+    <div id="overview-health"></div>
+    <h4 class="sec-title">Broker 拓扑与分区分布</h4>
+    <div id="overview-brokers"></div>
+    <h4 class="sec-title">消息量 Top 10（不含内部 topic）</h4>
+    <div id="overview-top"></div>
+  </div>
+
+  <div class="panel" id="panel-topics">
+    <div class="toolbar">
+      <button id="btn-topics">刷新 Topic 列表</button>
+      <span id="topics-status" class="hint"></span>
+    </div>
+    <div class="hint">消息量 = 各分区 (high watermark - low watermark) 之和，为近似存量。操作列可查看分区详情、消费详情、增加分区、删除 topic。</div>
+    <div id="topics-result"></div>
+
+    <div class="detail" id="topic-detail" style="display:none">
+      <div class="detail-head">
+        <h3 id="topic-title"></h3>
+        <span class="spacer"></span>
+        <button class="ghost sm" id="btn-topic-refresh">刷新</button>
+        <button class="ghost sm" id="btn-topic-add-part">增加分区</button>
+        <button class="danger sm" id="btn-topic-delete">删除 topic</button>
+      </div>
+      <div class="subtabs">
+        <div class="subtab active" data-sub="parts">分区详情</div>
+        <div class="subtab" data-sub="groups">消费详情</div>
+        <div class="subtab" data-sub="configs">配置项</div>
+      </div>
+      <div id="topic-sub-parts"></div>
+      <div id="topic-sub-groups" style="display:none"></div>
+      <div id="topic-sub-configs" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-groups">
+    <div class="toolbar">
+      <button id="btn-groups">刷新消费组</button>
+      <span id="groups-status" class="hint"></span>
+    </div>
+    <div id="groups-result"></div>
+    <div class="detail" id="lag-detail" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h3 id="lag-title" style="margin:0;flex:1"></h3>
+        <button id="btn-lag-refresh" class="ghost" style="padding:5px 11px">刷新积压</button>
+      </div>
+      <div class="toolbar" id="lag-actions" style="margin:12px 0 0">
+        <span class="hint" style="margin:0">重置位点：</span>
+        <button class="ghost sm" data-reset="earliest">最小位点</button>
+        <button class="ghost sm" data-reset="latest">最新位点</button>
+        <button class="ghost sm" data-reset="time">时间戳</button>
+        <span class="hint" style="margin:0">（作用于该组所有有提交位点的分区）</span>
+        <span class="hint" id="lag-msg" style="margin:0"></span>
+      </div>
+      <div id="lag-content" style="margin-top:12px"></div>
+      <div class="hint" id="lag-warn" style="margin:10px 0 0;color:#b91c1c">注意：重置位点要求该消费组当前没有运行中的消费端，否则新位点会被其内存中的 offset 覆盖。</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-messages">
+    <div class="toolbar">
+      <div class="combo" id="msg-topic-combo">
+        <input id="msg-topic" placeholder="搜索或输入 topic" autocomplete="off" spellcheck="false">
+        <div class="combo-list" id="msg-topic-list"></div>
+      </div>
+      <select id="msg-partition" title="分区（括号中为可读消息数）"></select>
+      <select id="msg-start">
+        <option value="beginning">最早 (beginning)</option>
+        <option value="end">最新 (end)</option>
+        <option value="offset">指定 offset</option>
+        <option value="time">指定时间</option>
+      </select>
+      <input id="msg-offset" placeholder="offset" style="width:110px;display:none">
+      <input id="msg-time" type="datetime-local" step="1" style="display:none">
+      <input id="msg-limit" type="number" value="100" min="1" max="10000" title="最多读取条数（跟随模式下达到该条数即停止）" style="width:110px">
+      <label class="follow-label" title="勾选后空闲不退出，持续等待新消息（实时 tail）">
+        <input type="checkbox" id="msg-follow"> 持续监听
+      </label>
+      <button id="btn-read">读取消息</button>
+      <button id="btn-stop" class="ghost" disabled>停止</button>
+    </div>
+    <div class="hint">topic 输入框支持关键字搜索（如输入 <code>pspace</code> 自动过滤），↑↓ 选择、回车确认。分区下拉标注了各分区的可读消息数，默认选中第一个有消息的分区；选「扫描全部有消息的分区」可并发读取。「指定时间」从该时刻（含）开始往后读，多分区时按各自分区的时间索引定位。<br>
+      <b>起始位置</b>：「最早」指该分区当前还在磁盘上的第一条消息（low watermark），更早的已被 retention 清理，不是 offset 0。「最新」从末尾开始，默认自动勾选<b>持续监听</b>——空闲不会断开，会一直等新消息（实时 tail），直到点「停止」或达到条数上限；选「扫描全部有消息的分区」时会同时跟随该 topic 的所有分区（单条连接、单 consumer）。<br>
+      独立 consumer，不加入消费组、不提交位点，对线上零影响。</div>
+
+    <div class="detail" id="send-panel" style="margin:0 0 14px">
+      <div class="detail-head">
+        <h3>发送消息</h3>
+        <span class="spacer"></span>
+        <span id="send-status" class="hint" style="margin:0"></span>
+        <button class="ghost sm" id="btn-send-toggle">收起</button>
+      </div>
+      <div id="send-body">
+        <div class="toolbar" style="margin-bottom:8px">
+          <input id="send-key" placeholder="key（留空为 null）" style="width:200px">
+          <input id="send-partition" placeholder="分区（留空自动分配）" style="width:180px">
+          <button id="btn-send">发送到当前 topic</button>
+          <span class="hint" style="margin:0">Ctrl/⌘ + Enter 快捷发送</span>
+        </div>
+        <textarea id="send-value" rows="4" placeholder='消息内容，例如 {"id":1,"name":"test"}'></textarea>
+        <div class="hint" style="margin:6px 0 0">发送到消息页当前选中的 topic。分区留空时由 Kafka 按 key 哈希或粘性策略分配；发送成功会返回实际落盘的分区与 offset。</div>
+      </div>
+    </div>
+
+    <div id="message-list"></div>
+    <div id="msg-status" class="err"></div>
+  </div>
+</main>
+
+<div class="modal-mask" id="modal-mask">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="modal-foot">
+      <button class="ghost" id="modal-cancel">取消</button>
+      <button id="modal-ok">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="cm-mask">
+  <div class="modal" style="width:820px">
+    <h3>集群管理</h3>
+    <div class="cm-form-title">已配置的集群（点击「编辑」载入下方表单）</div>
+    <div id="cm-list"></div>
+    <div class="cm-form-title">新增 / 编辑</div>
+    <div class="cm-form" id="cm-form">
+      <div class="cm-field"><label>集群名称</label><input id="cf-name" placeholder="如 local、prod-a" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field"><label>Bootstrap Servers</label><input id="cf-servers" placeholder="host1:9092,host2:9092" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field"><label>security.protocol</label>
+        <select id="cf-protocol">
+          <option value="PLAINTEXT">PLAINTEXT</option>
+          <option value="SASL_PLAINTEXT">SASL_PLAINTEXT</option>
+          <option value="SSL">SSL</option>
+          <option value="SASL_SSL">SASL_SSL</option>
+        </select>
+      </div>
+      <div class="cm-field"><label>log_level（0-7，默认 3 = warning）</label><input id="cf-loglevel" value="3" autocomplete="off"></div>
+      <div class="cm-field auth-sasl"><label>sasl.mechanism</label>
+        <select id="cf-mech">
+          <option value="">（不使用）</option>
+          <option value="SCRAM-SHA-256">SCRAM-SHA-256（推荐）</option>
+          <option value="SCRAM-SHA-512">SCRAM-SHA-512</option>
+          <option value="OAUTHBEARER">OAUTHBEARER</option>
+          <option value="PLAIN">PLAIN（需 Cyrus SASL，Windows 构建通常不可用）</option>
+        </select>
+      </div>
+      <div class="cm-field auth-sasl"><label>sasl.username</label><input id="cf-user" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field auth-sasl"><label>sasl.password</label><input id="cf-pass" type="password" autocomplete="new-password" placeholder="留空则不修改已保存的密码"></div>
+      <div class="cm-field auth-tls"><label>ssl.ca.location</label><input id="cf-ca" placeholder="/etc/kafka/ca.pem" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field auth-tls"><label>ssl.certificate.location</label><input id="cf-cert" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field auth-tls"><label>ssl.key.location</label><input id="cf-keyloc" autocomplete="off" spellcheck="false"></div>
+      <div class="cm-field auth-tls"><label>ssl.key.password</label><input id="cf-keypass" type="password" autocomplete="new-password" placeholder="留空则不修改"></div>
+    </div>
+    <div class="modal-foot" style="align-items:center">
+      <span class="hint" id="cm-msg" style="margin:0 auto 0 0"></span>
+      <button class="ghost" id="cm-test">测试连接</button>
+      <button class="ghost" id="cm-clear">清空表单</button>
+      <button id="cm-save">保存</button>
+      <button class="ghost" id="cm-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentCluster = '';
+let eventSources = [];
+
+async function api(path, method, body) {
+  const opts = { method: method || 'GET' };
+  if (body !== undefined) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch('/api' + path, opts);
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { throw new Error(text || ('HTTP ' + r.status)); }
+  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+function fmt(n) { return n == null ? '-' : n.toLocaleString('zh-CN'); }
+
+// 拉取集群列表并刷新下拉框；prefer 优先选中，否则尽量保留当前集群
+async function refreshClusters(prefer) {
+  const d = await api('/clusters');
+  const sel = $('cluster');
+  const names = d.clusters.map(c => c.name);
+  if (!d.clusters.length) {
+    sel.innerHTML = '<option value="">（未配置集群）</option>';
+    currentCluster = '';
+    return d.clusters;
+  }
+  sel.innerHTML = d.clusters.map(c => `<option value="${esc(c.name)}">${esc(c.name)} · ${esc(c.bootstrap_servers)}</option>`).join('');
+  let target = prefer && names.includes(prefer) ? prefer
+    : (names.includes(currentCluster) ? currentCluster : names[0]);
+  sel.value = target;
+  currentCluster = target;
+  return d.clusters;
+}
+
+// 切换/改动集群后重置页面状态并重载当前面板
+async function reloadForCluster() {
+  stopStream();
+  $('message-list').innerHTML = '';
+  $('lag-detail').style.display = 'none';
+  currentLagGroup = null;
+  closeTopicDetail();
+  panelLoaded.topics = panelLoaded.groups = panelLoaded.messages = false;
+  if (!currentCluster) {
+    $('overview-status').textContent = '还没有配置 Kafka 集群，点右上角「集群管理」添加一个。';
+    return;
+  }
+  const active = document.querySelector('.panel.active');
+  const name = active ? active.id.replace('panel-', '') : 'overview';
+  if (name === 'overview') await loadOverview();
+  else await ensurePanel(name);
+}
+
+async function init() {
+  try {
+    const list = await refreshClusters();
+    if (list.length) await ensurePanel('overview');
+    else {
+      $('overview-status').textContent = '还没有配置 Kafka 集群，点右上角「集群管理」添加一个。';
+      openClusterMgr();
+    }
+  } catch (e) { $('overview-status').textContent = '初始化失败: ' + e.message; }
+}
+
+const panelLoaded = { overview: false, topics: false, groups: false, messages: false };
+
+async function ensurePanel(name) {
+  if (panelLoaded[name]) return;
+  panelLoaded[name] = true;
+  if (name === 'overview') await loadOverview();
+  else if (name === 'topics') await loadTopics();
+  else if (name === 'groups') await loadGroups();
+  else if (name === 'messages') await loadMsgTopics();
+}
+
+$('cluster').addEventListener('change', async e => {
+  currentCluster = e.target.value;
+  await reloadForCluster();
+});
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', async () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + t.dataset.panel));
+  await ensurePanel(t.dataset.panel);
+}));
+
+// ===== 概览 =====
+async function loadOverview() {
+  if (!currentCluster) return;
+  $('overview-status').innerHTML = '<span class="spinner"></span> 加载中';
+  try {
+    const d = await api('/overview?cluster=' + encodeURIComponent(currentCluster));
+    renderOverviewCards(d);
+    renderOverviewBrokers(d);
+    renderOverviewTop(d);
+    $('overview-status').textContent = '采样时间 ' + d.fetched_at.replace('T', ' ').slice(0, 19);
+  } catch (e) {
+    $('overview-status').textContent = '加载失败: ' + e.message;
+  }
+}
+
+function renderOverviewCards(d) {
+  const card = (k, v, s, alert) =>
+    `<div class="card${alert ? ' alert' : ''}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
+  $('overview-cards').innerHTML = [
+    card('集群连接', `<span style="font-size:13px;word-break:break-all">${esc(d.bootstrap_servers)}</span>`,
+      `${esc(d.security_protocol)} · 已连接 broker ${d.connected_broker_id}`),
+    card('Broker 数', d.brokers.length, d.connected_broker_name ? `当前节点 ${esc(d.connected_broker_name)}` : ''),
+    card('Topic 数', fmt(d.topic_count), `含内部 topic ${fmt(d.internal_topic_count)} 个`),
+    card('分区总数', fmt(d.partition_count), `副本合计 ${fmt(d.replica_count)}`),
+    card('消息总量(约)', fmt(d.total_messages), `业务 ${fmt(d.business_messages)} · 内部 ${fmt(d.internal_messages)}`),
+    card('消费组', fmt(d.group_count), '含空组与失活组'),
+    card('ISR 不足分区', fmt(d.under_replicated), d.under_replicated ? '有副本掉队，需关注' : '全部副本同步', d.under_replicated > 0),
+    card('无 Leader 分区', fmt(d.no_leader), d.no_leader ? '这些分区当前不可读写' : '全部正常', d.no_leader > 0),
+  ].join('');
+
+  const chips = d.group_states.map(s => `<span class="chip">${esc(s.state)} <b>${s.count}</b></span>`).join('');
+  $('overview-health').innerHTML =
+    `<div class="sec-title" style="margin-top:16px">消费组状态分布</div>
+     <div class="chips">${chips || '<span class="hint" style="margin:0">该集群暂无消费组</span>'}</div>`;
+}
+
+function renderOverviewBrokers(d) {
+  if (!d.brokers.length) { $('overview-brokers').innerHTML = '<div class="empty">没有 broker 信息</div>'; return; }
+  const max = Math.max(1, ...d.brokers.map(b => b.leader_partitions));
+  const rows = d.brokers.map(b => `<tr>
+    <td class="num">${b.id}</td>
+    <td>${esc(b.host)}:${b.port}${b.is_connected ? '<span class="tag ok">当前连接</span>' : ''}</td>
+    <td class="num">${fmt(b.leader_partitions)}</td>
+    <td><div class="bar-wrap"><div class="bar" style="width:${Math.round(b.leader_partitions / max * 100)}%"></div></div></td>
+    <td class="num">${fmt(b.replicas)}</td>
+    <td class="num">${fmt(b.in_sync)}</td>
+    <td class="num">${fmt(b.topics_led)}</td>
+    <td><button class="ghost sm" data-bid="${b.id}">配置</button></td>
+  </tr>`).join('');
+  $('overview-brokers').innerHTML = `<table><thead><tr>
+      <th class="num">Broker ID</th><th>地址</th><th class="num">Leader 分区</th><th style="width:160px">Leader 分布</th>
+      <th class="num">副本数</th><th class="num">在 ISR</th><th class="num">承载 Topic</th><th>操作</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <div class="tbl-note">Leader 分区应大致均衡；某一台明显偏高说明分区分布不均，可用 kafka-reassign-partitions 迁移。点「配置」看该 broker 的关键服务端参数。</div>`;
+}
+
+$('overview-brokers').addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-bid]');
+  if (!btn) return;
+  const id = btn.dataset.bid;
+  btn.disabled = true;
+  try {
+    const d = await api(`/brokers/${id}/configs?cluster=${encodeURIComponent(currentCluster)}`);
+    const rows = d.configs.map(c => `<tr>
+      <td>${esc(c.name)}${c.is_read_only ? '<span class="tag">只读</span>' : ''}</td>
+      <td style="white-space:normal;word-break:break-all">${c.value === null ? '<span style="color:#9ca3af">null</span>' : esc(c.value)}</td>
+      <td>${c.is_default ? '默认' : '<b>自定义</b>'}</td></tr>`).join('');
+    showModal({
+      title: `Broker ${id} 关键配置`,
+      body: `<div style="max-height:62vh;overflow:auto"><table><thead><tr><th>配置项</th><th>值</th><th style="width:80px">是否默认</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3">该 broker 未返回这些配置项</td></tr>'}</tbody></table></div>`,
+      okText: '关闭',
+      wide: true,
+      onOk: async () => closeModal(),
+    });
+  } catch (err) {
+    alert('读取配置失败: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderOverviewTop(d) {
+  if (!d.top_topics.length) { $('overview-top').innerHTML = '<div class="empty">暂无 topic 数据</div>'; return; }
+  const max = Math.max(1, ...d.top_topics.map(t => t.messages));
+  const rows = d.top_topics.map((t, i) => `<tr>
+    <td class="num">${i + 1}</td>
+    <td>${esc(t.name)}</td>
+    <td class="num">${t.partitions}</td>
+    <td class="num">${fmt(t.messages)}</td>
+    <td><div class="bar-wrap"><div class="bar" style="width:${Math.round(t.messages / max * 100)}%"></div></div></td>
+  </tr>`).join('');
+  $('overview-top').innerHTML = `<table><thead><tr>
+      <th class="num">#</th><th>Topic</th><th class="num">分区</th><th class="num">消息量(约)</th><th style="width:220px">占比</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+$('btn-overview').onclick = loadOverview;
+
+
+async function loadTopics() {
+  if (!currentCluster) return;
+  $('topics-status').innerHTML = '<span class="spinner"></span> 加载中';
+  try {
+    const d = await api('/topics?cluster=' + encodeURIComponent(currentCluster));
+    const rows = d.topics.map(t => `<tr>
+      <td>${esc(t.name)}</td>
+      <td class="num">${t.partitions}</td>
+      <td class="num">${t.replication_factor}</td>
+      <td class="num">${fmt(t.messages)}</td>
+      <td><div class="op-cell">
+        <button class="ghost" data-act="detail" data-topic="${esc(t.name)}">详情</button>
+        <button class="ghost" data-act="groups" data-topic="${esc(t.name)}">消费详情</button>
+        <button class="ghost" data-act="addpart" data-topic="${esc(t.name)}" data-parts="${t.partitions}">加分区</button>
+        <button class="danger" data-act="delete" data-topic="${esc(t.name)}">删除</button>
+      </div></td></tr>`).join('');
+    $('topics-result').innerHTML = d.topics.length
+      ? `<table><thead><tr><th>Topic</th><th class="num">分区数</th><th class="num">副本数</th><th class="num">消息量(约)</th><th style="width:280px">操作</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="empty">该集群暂无 topic</div>';
+    $('topics-status').textContent = `共 ${d.topics.length} 个 topic`;
+    // 详情面板若打开着，刷新后同步一次
+    if (currentTopic && d.topics.some(t => t.name === currentTopic)) loadTopicDetail();
+    else if (currentTopic) closeTopicDetail();
+  } catch (e) { $('topics-status').textContent = '失败: ' + e.message; }
+}
+
+// ===== topic 详情 / 消费详情 / 加分区 / 删除 =====
+let currentTopic = null;
+let topicDetailData = null;
+let topicSub = 'parts';
+let onlyNonDefaultConfig = true;
+let configKeyword = '';
+
+$('topics-result').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const topic = btn.dataset.topic;
+  const act = btn.dataset.act;
+  if (act === 'detail') openTopic(topic, 'parts');
+  else if (act === 'groups') openTopic(topic, 'groups');
+  else if (act === 'addpart') openAddPartitions(topic, parseInt(btn.dataset.parts, 10) || 0);
+  else if (act === 'delete') openDeleteTopic(topic);
+});
+
+document.querySelectorAll('#topic-detail .subtab').forEach(t => t.addEventListener('click', () => {
+  selectTopicSub(t.dataset.sub);
+  if (t.dataset.sub === 'groups') loadTopicGroups();
+}));
+
+function selectTopicSub(sub) {
+  topicSub = sub;
+  document.querySelectorAll('#topic-detail .subtab').forEach(x => x.classList.toggle('active', x.dataset.sub === sub));
+  $('topic-sub-parts').style.display = sub === 'parts' ? '' : 'none';
+  $('topic-sub-groups').style.display = sub === 'groups' ? '' : 'none';
+  $('topic-sub-configs').style.display = sub === 'configs' ? '' : 'none';
+}
+
+async function openTopic(name, sub) {
+  currentTopic = name;
+  topicDetailData = null;
+  $('topic-detail').style.display = 'block';
+  selectTopicSub(sub || 'parts');
+  $('topic-sub-groups').innerHTML = '';
+  await loadTopicDetail();
+  if (sub === 'groups') await loadTopicGroups();
+  $('topic-detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function closeTopicDetail() {
+  currentTopic = null;
+  topicDetailData = null;
+  $('topic-detail').style.display = 'none';
+}
+
+async function loadTopicDetail() {
+  if (!currentTopic) return;
+  const name = currentTopic;
+  $('topic-title').textContent = `${name} · 加载中...`;
+  try {
+    const d = await api(`/topics/${encodeURIComponent(name)}?cluster=${encodeURIComponent(currentCluster)}`);
+    if (currentTopic !== name) return; // 期间已切换到别的 topic
+    topicDetailData = d;
+    $('topic-title').innerHTML = `${esc(d.name)}<span class="tag">${d.partition_count} 分区</span>`
+      + `<span class="tag">副本 ${d.replication_factor}</span>`
+      + `<span class="tag ok">约 ${fmt(d.messages)} 条</span>`;
+    renderTopicParts(d);
+    renderTopicConfigs(d);
+  } catch (e) {
+    $('topic-title').textContent = `${name} · 加载失败: ${e.message}`;
+  }
+}
+
+function renderTopicParts(d) {
+  const rows = d.partitions.map(p => {
+    const under = p.isr.length < p.replicas.length;
+    const isr = under
+      ? `<span class="lag-high">${esc(p.isr.join(',') || '-')}</span><span class="tag warn">副本不足</span>`
+      : esc(p.isr.join(',') || '-');
+    return `<tr>
+      <td class="num">${p.partition}</td>
+      <td class="num">${p.leader < 0 ? '<span class="lag-high">无</span>' : p.leader}</td>
+      <td class="num">${esc(p.replicas.join(',') || '-')}</td>
+      <td>${isr}</td>
+      <td class="num">${fmt(p.low)}</td>
+      <td class="num">${fmt(p.high)}</td>
+      <td class="num">${fmt(p.messages)}</td>
+    </tr>`;
+  }).join('');
+  $('topic-sub-parts').innerHTML = `<table><thead><tr>
+      <th class="num">分区</th><th class="num">Leader</th><th class="num">副本</th><th>ISR</th>
+      <th class="num">起始 offset</th><th class="num">结束 offset</th><th class="num">可读消息</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <div class="tbl-note">可读消息 = 结束 offset - 起始 offset，已扣除 retention 清理的部分。leader 为 -1 说明该分区无可用 leader。</div>`;
+}
+
+function renderTopicConfigs(d) {
+  if (d.configs_error) {
+    $('topic-sub-configs').innerHTML = `<div class="hint">配置读取失败：${esc(d.configs_error)}</div>`;
+    return;
+  }
+  const bar = `<div class="toolbar" style="margin-bottom:10px">
+      <input id="cfg-kw" placeholder="搜索配置项" value="${esc(configKeyword)}" style="width:220px">
+      <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="cfg-nondefault" ${onlyNonDefaultConfig ? 'checked' : ''} style="vertical-align:middle"> 只看非默认值</label>
+      <span class="hint" style="margin:0" id="cfg-count"></span>
+    </div>`;
+  $('topic-sub-configs').innerHTML = bar + '<div id="cfg-table"></div>';
+
+  const paint = () => {
+    const kw = configKeyword.trim().toLowerCase();
+    const list = d.configs.filter(c =>
+      (!onlyNonDefaultConfig || !c.is_default)
+      && (!kw || c.name.toLowerCase().includes(kw) || (c.value || '').toLowerCase().includes(kw)));
+    const rows = list.map(c => `<tr>
+      <td>${esc(c.name)}${c.is_read_only ? '<span class="tag">只读</span>' : ''}</td>
+      <td>${c.value === null ? '<span style="color:#9ca3af">null</span>' : esc(c.value)}</td>
+      <td>${esc(c.source)}</td>
+      <td>${c.is_default ? '默认' : '<b>自定义</b>'}</td></tr>`).join('');
+    $('cfg-table').innerHTML = rows
+      ? `<table><thead><tr><th>配置项</th><th>值</th><th>来源</th><th>是否默认</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="hint">没有匹配的配置项</div>';
+    $('cfg-count').textContent = `共 ${d.configs.length} 项，显示 ${list.length} 项`;
+  };
+  paint();
+
+  $('cfg-kw').addEventListener('input', e => { configKeyword = e.target.value; paint(); });
+  $('cfg-nondefault').addEventListener('change', e => { onlyNonDefaultConfig = e.target.checked; paint(); });
+}
+
+async function loadTopicGroups() {
+  if (!currentTopic) return;
+  const name = currentTopic;
+  $('topic-sub-groups').innerHTML = '<div class="hint"><span class="spinner"></span> 查询消费组...</div>';
+  try {
+    const d = await api(`/topics/${encodeURIComponent(name)}/groups?cluster=${encodeURIComponent(currentCluster)}`);
+    if (currentTopic !== name) return;
+    if (!d.groups.length) {
+      $('topic-sub-groups').innerHTML = '<div class="hint">没有消费组在这个 topic 上有已提交位点，也没有正在消费它的成员。</div>';
+      return;
+    }
+    const total = d.groups.reduce((a, g) => a + g.total_lag, 0);
+    const blocks = d.groups.map(g => {
+      const rows = g.partitions.map(p => `<tr>
+        <td class="num">${p.partition}</td>
+        <td class="num">${fmt(p.committed)}</td>
+        <td class="num">${fmt(p.log_end)}</td>
+        <td class="num"><span class="${p.lag > 0 ? 'lag-high' : 'lag-zero'}">${fmt(p.lag)}</span></td></tr>`).join('');
+      const table = rows
+        ? `<table style="margin-top:8px"><thead><tr><th class="num">分区</th><th class="num">已提交 offset</th><th class="num">Log End</th><th class="num">积压</th></tr></thead><tbody>${rows}</tbody></table>`
+        : '<div class="hint" style="margin:8px 0 0">该组在此 topic 上还没有提交位点</div>';
+      const lagCls = g.total_lag > 0 ? 'lag-high' : 'lag-zero';
+      return `<details style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        <summary style="cursor:pointer;font-size:13px">
+          <b>${esc(g.group)}</b>
+          <span class="state" style="margin-left:6px">${esc(g.state)}</span>
+          <span style="color:var(--muted);margin-left:8px">成员 ${g.members}</span>
+          <span style="margin-left:8px">积压 <span class="${lagCls}">${fmt(g.total_lag)}</span></span>
+          <span style="color:var(--muted);margin-left:8px">${g.committed_partitions} 个分区有位点</span>
+        </summary>
+        ${table}
+      </details>`;
+    }).join('');
+    $('topic-sub-groups').innerHTML =
+      `<div class="hint" style="margin-top:0">共 ${d.groups.length} 个消费组消费此 topic，合计积压 <b class="${total > 0 ? 'lag-high' : 'lag-zero'}">${fmt(total)}</b></div>${blocks}`;
+  } catch (e) {
+    $('topic-sub-groups').innerHTML = `<div class="hint">查询失败：${esc(e.message)}</div>`;
+  }
+}
+
+// ===== 弹窗 =====
+let modalOkHandler = null;
+
+function showModal({ title, body, okText, danger, wide, onOk }) {
+  $('modal-title').textContent = title;
+  $('modal-body').innerHTML = body;
+  document.querySelector('.modal').classList.toggle('wide', !!wide);
+  const ok = $('modal-ok');
+  ok.textContent = okText || '确认';
+  ok.className = danger ? 'danger' : '';
+  ok.disabled = false;
+  $('modal-mask').classList.add('open');
+  modalOkHandler = onOk;
+}
+
+function closeModal() {
+  $('modal-mask').classList.remove('open');
+  modalOkHandler = null;
+}
+
+$('modal-cancel').onclick = closeModal;
+$('modal-mask').addEventListener('click', e => { if (e.target === $('modal-mask')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('modal-mask').classList.contains('open')) closeModal(); });
+$('modal-ok').onclick = async () => {
+  if (!modalOkHandler) return;
+  const ok = $('modal-ok');
+  ok.disabled = true;
+  try {
+    await modalOkHandler();
+  } catch (e) {
+    alert('操作失败：' + e.message);
+    ok.disabled = false;
+  }
+};
+
+function openAddPartitions(topic, currentParts) {
+  const next = currentParts + 1;
+  showModal({
+    title: `增加分区 · ${topic}`,
+    body: `<div class="hint" style="margin-top:0">当前 ${currentParts} 个分区。请输入操作完成后的分区总数（Kafka 语义，不是新增数量）。新增分区不会迁移已有数据，按 key 分区的消息可能落到新分区。</div>
+      <input id="modal-input" type="number" min="${next}" value="${next}">`,
+    okText: '扩容',
+    onOk: async () => {
+      const v = parseInt($('modal-input').value, 10);
+      if (!Number.isFinite(v) || v <= currentParts) throw new Error(`目标分区数必须大于当前 ${currentParts}`);
+      await api(`/topics/${encodeURIComponent(topic)}/partitions?cluster=${encodeURIComponent(currentCluster)}`, 'POST', { partition_count: v });
+      closeModal();
+      await loadTopics();
+      if (currentTopic === topic) await loadTopicDetail();
+      $('topics-status').textContent = `${topic} 已扩容至 ${v} 个分区`;
+    }
+  });
+  // 只允许整数
+  $('modal-input').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^\d]/g, ''); });
+  $('modal-input').focus();
+  $('modal-input').select();
+}
+
+function openDeleteTopic(topic) {
+  showModal({
+    title: `删除 topic · ${topic}`,
+    body: `<div class="warn-box">此操作不可逆。topic 及全部消息会被永久删除，消费组在该 topic 上的位点同时失效。<br>请输入 topic 名称 <code>${esc(topic)}</code> 以确认：</div>
+      <input id="modal-input" placeholder="${esc(topic)}" autocomplete="off" spellcheck="false">`,
+    okText: '永久删除',
+    danger: true,
+    onOk: async () => {
+      const v = $('modal-input').value.trim();
+      if (v !== topic) throw new Error('输入的 topic 名称不一致');
+      await api(`/topics/${encodeURIComponent(topic)}?cluster=${encodeURIComponent(currentCluster)}`, 'DELETE');
+      closeModal();
+      if (currentTopic === topic) closeTopicDetail();
+      await Promise.all([loadTopics(), loadGroups(), loadMsgTopics()]);
+      $('topics-status').textContent = `已删除 topic ${topic}`;
+    }
+  });
+  $('modal-input').focus();
+}
+
+$('btn-topic-refresh').onclick = () => { loadTopicDetail(); if (topicSub === 'groups') loadTopicGroups(); };
+
+$('btn-topic-add-part').onclick = () => {
+  if (!currentTopic) return;
+  const cur = topicDetailData ? topicDetailData.partition_count : 0;
+  openAddPartitions(currentTopic, cur);
+};
+
+$('btn-topic-delete').onclick = () => { if (currentTopic) openDeleteTopic(currentTopic); };
+
+async function loadGroups() {
+  if (!currentCluster) return;
+  $('groups-status').innerHTML = '<span class="spinner"></span> 加载中';
+  try {
+    const d = await api('/groups?cluster=' + encodeURIComponent(currentCluster));
+    // 整行可点：data-group 存编码后的组名，点击委托统一处理（见下方监听）
+    const rows = d.groups.map(g => `<tr class="clickable" data-group="${encodeURIComponent(g.name)}">
+      <td><span class="link">${esc(g.name)}</span></td>
+      <td><span class="state">${esc(g.state)}</span></td>
+      <td class="num">${g.members}</td>
+      <td>${esc(g.topics.join(', ') || '-')}</td>
+      <td class="num"><span class="link">查看积压</span></td></tr>`).join('');
+    $('groups-result').innerHTML = d.groups.length
+      ? `<table><thead><tr><th>消费组</th><th>状态</th><th class="num">成员数</th><th>订阅 Topic</th><th class="num">积压</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="empty">该集群暂无消费组</div>';
+    $('groups-status').textContent = `共 ${d.groups.length} 个消费组`;
+  } catch (e) { $('groups-status').textContent = '失败: ' + e.message; }
+}
+
+// 消费组表格整行可点，点任意位置（组名或积压列）都打开该组的分区积压详情
+$('groups-result').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-group]');
+  if (!tr) return;
+  showLag(tr.dataset.group);
+});
+
+let currentLagGroup = null;
+let currentLagData = null;
+
+async function showLag(encodedName, keepGroup) {
+  currentLagGroup = encodedName;
+  $('lag-detail').style.display = 'block';
+  $('lag-title').textContent = '加载中...';
+  // 详情在表格下方，点完顺手滚到可见位置，避免看起来没反应
+  $('lag-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('btn-lag-refresh').disabled = true;
+  try {
+    const d = await api('/groups/' + encodedName + '/lag?cluster=' + encodeURIComponent(currentCluster));
+    currentLagData = d;
+    $('lag-msg').textContent = '';
+    const d2 = decodeURIComponent(encodedName);
+    $('lag-title').textContent = `消费组 ${esc(d.group || d2)} · 状态 ${esc(d.state)} · 总积压 ${fmt(d.total_lag)}`;
+    const rows = d.partitions.filter(p => p.committed !== null || p.lag !== null).map(p => {
+      const cls = p.lag > 0 ? 'lag-high' : 'lag-zero';
+      const committed = p.committed === null ? '<span style="color:#9ca3af">未提交</span>' : fmt(p.committed);
+      const lag = p.lag === null ? '-' : `<span class="${cls}">${fmt(p.lag)}</span>`;
+      return `<tr><td>${esc(p.topic)}</td><td class="num">${p.partition}</td><td class="num">${committed}</td><td class="num">${fmt(p.log_end)}</td><td class="num">${lag}</td>
+        <td><button class="ghost sm" data-reset-part="${p.partition}" data-reset-topic="${esc(p.topic)}">重置</button></td></tr>`;
+    }).join('');
+    $('lag-content').innerHTML = rows
+      ? `<table><thead><tr><th>Topic</th><th class="num">分区</th><th class="num">已提交 offset</th><th class="num">Log End</th><th class="num">积压</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="hint">该消费组没有已提交的位点（新建组或从未消费）</div>';
+    // 没有任何可操作的分区时隐藏重置按钮组
+    $('lag-actions').style.display = rows ? '' : 'none';
+    $('lag-warn').style.display = rows ? '' : 'none';
+  } catch (e) { $('lag-title').textContent = '加载失败: ' + e.message; }
+  finally { $('btn-lag-refresh').disabled = false; }
+}
+
+$('btn-lag-refresh').onclick = () => {
+  if (currentLagGroup) showLag(currentLagGroup, true);
+};
+
+// ===== 重置消费位点 =====
+// currentLagGroup 已是 encodeURIComponent 后的值，直接拼进路径即可（axum 会解一次）
+function postReset(topic, partition, mode, value) {
+  return api(`/groups/${currentLagGroup}/offsets`, 'POST', {
+    cluster: currentCluster, topic, partition, mode, value
+  });
+}
+
+function resetTopics() {
+  if (!currentLagData) return [];
+  return [...new Set(currentLagData.partitions.map(p => p.topic))];
+}
+
+function setLagMsg(text, isErr) {
+  const el = $('lag-msg');
+  if (!el) return;
+  el.style.color = isErr ? '#dc2626' : '#059669';
+  el.textContent = text;
+}
+
+// 顶部：对整组所有分区批量重置
+$('lag-actions').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-reset]');
+  if (!btn || !currentLagData) return;
+  const kind = btn.dataset.reset;
+  const topics = resetTopics();
+  if (!topics.length) return;
+
+  if (kind === 'time') { openResetByTime(topics); return; }
+
+  const label = kind === 'earliest' ? '最小位点' : '最新位点';
+  const effect = kind === 'earliest'
+    ? '位点会退回到各分区当前还保留的最早一条消息，下次消费会把这些消息重新读一遍。'
+    : '位点会直接跳到末尾，尚未消费的积压会被跳过（相当于丢弃积压）。';
+  showModal({
+    title: `重置位点 · ${label}`,
+    danger: true,
+    okText: '确认重置',
+    body: `<div class="warn-box">将对该消费组在 <b>${topics.length}</b> 个 topic 上的全部分区重置到「${label}」。<br>${effect}<br>
+      另需确认当前没有运行中的消费端，否则位点会被其覆盖。</div>
+      <div class="hint" style="margin:0">${topics.map(esc).join('、')}</div>`,
+    onOk: async () => {
+      let total = 0;
+      for (const t of topics) {
+        const r = await postReset(t, null, kind);
+        total += (r.results || []).length;
+      }
+      closeModal();
+      await showLag(currentLagGroup, true);
+      setLagMsg(`已把 ${total} 个分区重置到${label}`);
+    }
+  });
+});
+
+function openResetByTime(topics) {
+  const def = localDatetimeValue(new Date(Date.now() - 10 * 60 * 1000));
+  showModal({
+    title: '重置位点 · 按时间戳',
+    danger: true,
+    okText: '确认重置',
+    body: `<div class="warn-box">位点会定位到「该时间点之后的第一条消息」，下次消费从那里开始。<br>
+      若某分区此时间之后没有消息，会落到该分区末尾（不重复消费）。</div>
+      <input id="modal-input" type="datetime-local" step="1" value="${def}">
+      <div class="hint" style="margin:8px 0 0">作用于 ${topics.length} 个 topic 的全部分区。</div>`,
+    onOk: async () => {
+      const v = $('modal-input').value;
+      if (!v) throw new Error('请选择时间');
+      const ms = new Date(v).getTime();
+      if (!Number.isFinite(ms)) throw new Error('时间格式无法解析');
+      let total = 0;
+      for (const t of topics) {
+        const r = await postReset(t, null, 'timestamp', ms);
+        total += (r.results || []).length;
+      }
+      closeModal();
+      await showLag(currentLagGroup, true);
+      setLagMsg(`已按 ${v.replace('T', ' ')} 重置 ${total} 个分区的位点`);
+    }
+  });
+}
+
+// 行内：单个分区重置
+$('lag-content').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-reset-part]');
+  if (!btn || !currentLagData) return;
+  const topic = btn.dataset.resetTopic;
+  const partition = parseInt(btn.dataset.resetPart, 10);
+  const p = currentLagData.partitions.find(x => x.topic === topic && x.partition === partition);
+  if (!p) return;
+  openResetPartition(topic, partition, p);
+});
+
+function openResetPartition(topic, partition, p) {
+  const cur = p.committed === null ? '未提交' : fmt(p.committed);
+  showModal({
+    title: `重置位点 · ${topic} 分区 ${partition}`,
+    danger: true,
+    okText: '重置',
+    body: `<div class="hint" style="margin-top:0">当前已提交 <b>${cur}</b>，Log End <b>${fmt(p.log_end)}</b>${p.lag !== null ? `，积压 <b>${fmt(p.lag)}</b>` : ''}。<br>
+      输入新的位点（即「下一条要消费的 offset」），或直接用下面的快捷按钮：</div>
+      <input id="modal-input" type="number" min="0" value="${p.committed !== null ? p.committed : p.log_end}">
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="ghost sm" id="reset-fill-min">最小位点</button>
+        <button class="ghost sm" id="reset-fill-max">最新位点</button>
+      </div>`,
+    onOk: async () => {
+      const v = parseInt($('modal-input').value, 10);
+      if (!Number.isFinite(v) || v < 0) throw new Error('请输入非负整数 offset');
+      await doPartitionReset(topic, partition, 'offset', v);
+    }
+  });
+  const minBtn = $('reset-fill-min');
+  const maxBtn = $('reset-fill-max');
+  if (minBtn) minBtn.onclick = () => doPartitionReset(topic, partition, 'earliest');
+  if (maxBtn) maxBtn.onclick = () => doPartitionReset(topic, partition, 'latest');
+}
+
+async function doPartitionReset(topic, partition, mode, value) {
+  const ok = $('modal-ok');
+  ok.disabled = true;
+  try {
+    const r = await postReset(topic, partition, mode, value);
+    const res = (r.results || [])[0];
+    closeModal();
+    await showLag(currentLagGroup, true);
+    setLagMsg(res
+      ? `${topic} 分区 ${partition} 位点 ${res.from == null ? '未提交' : fmt(res.from)} → ${fmt(res.to)}${res.adjusted ? '（原目标越界，已夹到边界）' : ''}`
+      : `${topic} 分区 ${partition} 已重置`);
+  } catch (e) {
+    setLagMsg('重置失败：' + e.message, true);
+    ok.disabled = false;
+  }
+}
+
+let partitionCache = [];
+let msgTopics = [];
+let lastLoadedTopic = '';
+let comboActive = -1;
+
+async function loadMsgTopics() {
+  try {
+    const d = await api('/topics?cluster=' + encodeURIComponent(currentCluster));
+    msgTopics = d.topics.map(t => t.name);
+    const cur = $('msg-topic').value.trim();
+    if (!msgTopics.includes(cur)) $('msg-topic').value = msgTopics[0] || '';
+    renderCombo('');
+    await loadPartitions();
+  } catch (e) { $('msg-status').textContent = '加载 topic 失败: ' + e.message; }
+}
+
+function renderCombo(q) {
+  const kw = (q || '').trim().toLowerCase();
+  const hit = kw ? msgTopics.filter(t => t.toLowerCase().includes(kw)) : msgTopics;
+  const list = $('msg-topic-list');
+  if (!hit.length) {
+    list.innerHTML = `<div class="combo-empty">没有匹配的 topic${kw ? '，回车直接按「' + esc(kw) + '」读取' : ''}</div>`;
+  } else {
+    list.innerHTML = hit.slice(0, 300).map(t => {
+      let label = esc(t);
+      if (kw) {
+        const i = t.toLowerCase().indexOf(kw);
+        label = esc(t.slice(0, i)) + '<span class="mark">' + esc(t.slice(i, i + kw.length)) + '</span>' + esc(t.slice(i + kw.length));
+      }
+      return `<div class="combo-item" data-name="${esc(t)}">${label}</div>`;
+    }).join('') + (hit.length > 300 ? `<div class="combo-empty">共 ${hit.length} 个匹配，仅显示前 300 个</div>` : '');
+  }
+  comboActive = -1;
+}
+
+function openCombo() { $('msg-topic-list').classList.add('open'); }
+function closeCombo() {
+  $('msg-topic-list').classList.remove('open');
+  comboActive = -1;
+}
+function pickTopic(name) {
+  $('msg-topic').value = name;
+  closeCombo();
+  loadPartitions();
+}
+
+const topicInput = $('msg-topic');
+topicInput.addEventListener('focus', () => { renderCombo(''); openCombo(); });
+topicInput.addEventListener('input', () => { renderCombo(topicInput.value); openCombo(); });
+topicInput.addEventListener('keydown', e => {
+  const items = [...$('msg-topic-list').querySelectorAll('.combo-item')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!items.length) return;
+    e.preventDefault();
+    openCombo();
+    comboActive = e.key === 'ArrowDown'
+      ? (comboActive + 1) % items.length
+      : (comboActive - 1 + items.length) % items.length;
+    items.forEach((el, i) => el.classList.toggle('active', i === comboActive));
+    items[comboActive].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (comboActive >= 0 && items[comboActive]) {
+      pickTopic(items[comboActive].dataset.name);
+    } else {
+      closeCombo();
+      loadPartitions();
+    }
+  } else if (e.key === 'Escape') {
+    closeCombo();
+    topicInput.blur();
+  }
+});
+topicInput.addEventListener('blur', () => {
+  setTimeout(() => {
+    closeCombo();
+    const v = topicInput.value.trim();
+    if (v && v !== lastLoadedTopic && msgTopics.includes(v)) loadPartitions();
+  }, 120);
+});
+$('msg-topic-list').addEventListener('mousedown', e => {
+  const item = e.target.closest('.combo-item');
+  if (!item) return;
+  e.preventDefault();
+  pickTopic(item.dataset.name);
+});
+
+async function loadPartitions() {
+  const topic = $('msg-topic').value.trim();
+  if (!topic) return;
+  try {
+    const d = await api(`/partitions?cluster=${encodeURIComponent(currentCluster)}&topic=${encodeURIComponent(topic)}`);
+    const prev = lastLoadedTopic === topic ? $('msg-partition').value : '';
+    lastLoadedTopic = topic;
+    partitionCache = d.partitions || [];
+    const withData = partitionCache.filter(p => p.messages > 0);
+    const sel = $('msg-partition');
+    let html = `<option value="all">扫描全部有消息的分区 (${withData.length})</option>`;
+    for (const p of partitionCache) {
+      const flag = p.messages > 0 ? ` · ${fmt(p.messages)} 条可读` : ' · 空';
+      html += `<option value="${p.partition}">分区 ${p.partition}${flag}</option>`;
+    }
+    sel.innerHTML = html;
+    // 同一个 topic 刷新时保留用户已选分区；换 topic 则默认选第一个有消息的分区
+    if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    else if (withData[0]) sel.value = String(withData[0].partition);
+  } catch (e) { $('msg-status').textContent = '加载分区失败: ' + e.message; }
+}
+
+function localDatetimeValue(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+$('msg-start').addEventListener('change', e => {
+  const v = e.target.value;
+  $('msg-offset').style.display = v === 'offset' ? '' : 'none';
+  $('msg-time').style.display = v === 'time' ? '' : 'none';
+  // 选「最新」通常就是要实时 tail，默认打开持续监听；读历史则关掉
+  $('msg-follow').checked = v === 'end';
+  if (v === 'time' && !$('msg-time').value) {
+    // 默认给一个「10 分钟前」的起点，避免空值
+    $('msg-time').value = localDatetimeValue(new Date(Date.now() - 10 * 60 * 1000));
+  }
+});
+
+$('btn-topics').onclick = loadTopics;
+$('btn-groups').onclick = loadGroups;
+
+function appendMessage(m) {
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const head = `partition=${m.partition} offset=${m.offset} ts=${m.timestamp_iso || '-'} bytes=${m.value_bytes}`;
+  div.innerHTML = `<div class="msg-head">${esc(head)}</div>
+    <div><span class="msg-key">KEY: ${esc(m.key ?? 'null')}</span></div>
+    <div class="msg-val">${esc(m.value ?? 'null')}</div>`;
+  $('message-list').appendChild(div);
+  $('message-list').scrollTop = $('message-list').scrollHeight;
+}
+
+$('btn-read').onclick = async () => {
+  stopStream();
+  const topic = $('msg-topic').value.trim();
+  if (!topic) { $('msg-status').textContent = '请选择或输入 topic'; return; }
+  closeCombo();
+  // 输入框里的 topic 与已加载分区不一致时，先补齐分区信息，避免用旧分区号读取
+  if (topic !== lastLoadedTopic) await loadPartitions();
+  let start = $('msg-start').value;
+  if (start === 'offset') {
+    const n = $('msg-offset').value.trim();
+    if (!/^\d+$/.test(n)) { $('msg-status').textContent = '请输入数字 offset'; return; }
+    start = n;
+  } else if (start === 'time') {
+    const v = $('msg-time').value;
+    if (!v) { $('msg-status').textContent = '请选择起始时间'; return; }
+    const ms = new Date(v).getTime();
+    if (!Number.isFinite(ms)) { $('msg-status').textContent = '时间格式无法解析'; return; }
+    start = String(ms);
+    $('msg-status').style.color = '#6b7280';
+    $('msg-status').textContent = `从 ${v.replace('T', ' ')} 开始读取...`;
+  }
+  const selPartition = $('msg-partition').value;
+  const limit = $('msg-limit').value || '100';
+  const follow = $('msg-follow').checked;
+  // 扫描模式：只并发读有消息的分区；如果当前没有有消息的分区，则扫全部
+  let partitions;
+  if (selPartition === 'all') {
+    const withData = partitionCache.filter(p => p.messages > 0);
+    partitions = (withData.length ? withData : partitionCache).map(p => p.partition);
+  } else {
+    partitions = [selPartition];
+  }
+  if (!partitions.length) { $('msg-status').textContent = '该 topic 暂无分区'; return; }
+
+  // 持续监听：只发一条请求（partition=-1 表示该 topic 全部分区），
+  // 由单个 consumer 一次 assign 所有分区，避免每个分区各开一条长连接。
+  // 读历史仍然按分区并发（各自有明确的结束点，便于分别提示）。
+  const targets = follow ? [-1] : partitions;
+
+  $('message-list').innerHTML = '';
+  $('msg-status').style.color = '#6b7280';
+  $('msg-status').textContent = follow
+    ? `持续监听中（${partitions.length} 个分区），新消息到达会实时追加，点「停止」结束...`
+    : `正在读取 ${partitions.length} 个分区...`;
+  $('btn-read').disabled = true; $('btn-stop').disabled = false;
+
+  let finishedCount = 0;
+  let totalSent = 0;
+  let hadError = false;
+
+  for (const partition of targets) {
+    const url = `/api/messages?cluster=${encodeURIComponent(currentCluster)}&topic=${encodeURIComponent(topic)}&partition=${partition}&start=${encodeURIComponent(start)}&limit=${limit}${follow ? '&follow=true' : ''}`;
+    const es = new EventSource(url);
+    eventSources.push(es);
+    let done = false;
+    es.addEventListener('done', e => {
+      if (done) return;
+      done = true;
+      // 计数以 message 事件为准，这里不再回填 sent，避免重复累加
+      finishedCount++;
+      if (finishedCount === targets.length) {
+        let hint;
+        if (follow) {
+          hint = totalSent > 0
+            ? `监听结束：已收到 ${totalSent} 条，达到条数上限 ${limit}。想继续接收请重新点「读取消息」。`
+            : '监听结束。';
+        } else if (totalSent > 0) {
+          hint = `读取完成，共 ${totalSent} 条消息（来自 ${partitions.length} 个分区）`;
+        } else if (start === 'end') {
+          hint = '从「最新」位置开始读，之后没有新消息到达。要看已有的消息，请把起始位置切换为「最早」。';
+        } else {
+          hint = '所选分区没有可读取的消息（消息可能已被过期清理，可切换 start 或分区重试）';
+        }
+        $('msg-status').style.color = '#6b7280';
+        $('msg-status').textContent = hint;
+        stopStream();
+      }
+    });
+    es.addEventListener('message', e => {
+      try {
+        appendMessage(JSON.parse(e.data));
+        totalSent++;
+        if (follow) {
+          $('msg-status').style.color = '#6b7280';
+          $('msg-status').textContent = `持续监听中（${partitions.length} 个分区），已收到 ${totalSent} 条 / 上限 ${limit}，点「停止」结束`;
+        }
+      }
+      catch (e) { $('msg-status').textContent = '消息解析失败: ' + e.message; }
+    });
+    es.onerror = () => {
+      if (done) return;
+      done = true;
+      hadError = true;
+      finishedCount++;
+      if (finishedCount === targets.length) {
+        $('msg-status').style.color = hadError && totalSent === 0 ? '#dc2626' : '#6b7280';
+        $('msg-status').textContent = totalSent > 0
+          ? `读取结束，共 ${totalSent} 条消息（部分连接出错）`
+          : '连接出错，请检查集群连接或 topic/分区是否正确';
+        stopStream();
+      }
+    };
+  }
+};
+
+function stopStream() {
+  for (const es of eventSources) { try { es.close(); } catch (_) {} }
+  eventSources = [];
+  $('btn-read').disabled = false; $('btn-stop').disabled = true;
+}
+$('btn-stop').onclick = () => {
+  const n = document.querySelectorAll('#message-list .msg').length;
+  stopStream();
+  if (n > 0) {
+    $('msg-status').style.color = '#6b7280';
+    $('msg-status').textContent = `已停止，共收到 ${n} 条消息`;
+  }
+};
+
+// ===== 发送消息 =====
+$('btn-send-toggle').onclick = () => {
+  const body = $('send-body');
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  $('btn-send-toggle').textContent = hidden ? '收起' : '展开';
+};
+
+async function sendMessage() {
+  const topic = $('msg-topic').value.trim();
+  if (!topic) { $('send-status').textContent = '请先在左侧选择或输入 topic'; return; }
+  const value = $('send-value').value;
+  if (!value) { $('send-status').textContent = '消息内容不能为空'; return; }
+
+  const partRaw = $('send-partition').value.trim();
+  let partition = null;
+  if (partRaw) {
+    if (!/^\d+$/.test(partRaw)) { $('send-status').textContent = '分区必须是数字'; return; }
+    partition = parseInt(partRaw, 10);
+  }
+  const key = $('send-key').value.trim();
+  const btn = $('btn-send');
+  btn.disabled = true;
+  $('send-status').style.color = '#6b7280';
+  $('send-status').textContent = '发送中...';
+  try {
+    const d = await api('/messages', 'POST', {
+      cluster: currentCluster,
+      topic,
+      partition,
+      key: key || null,
+      value,
+    });
+    $('send-status').style.color = '#059669';
+    $('send-status').textContent = `已发送 → partition ${d.partition}, offset ${fmt(d.offset)}, ${fmt(d.bytes)} 字节, ${d.latency_ms}ms`;
+    // 发送后同步一次分区下拉，让水位/消息数跟上
+    if (topic === lastLoadedTopic) loadPartitions();
+  } catch (e) {
+    $('send-status').style.color = '#dc2626';
+    $('send-status').textContent = '发送失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('btn-send').onclick = sendMessage;
+
+$('send-value').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+});
+
+
+// ===== 集群管理（页面端维护，落盘到 config/clusters.json）=====
+let cmClusters = [];
+let cmEditing = null;
+
+function openClusterMgr() {
+  $('cm-mask').classList.add('open');
+  $('cm-msg').textContent = '';
+  renderClusterList();
+  if (!cmEditing) clearClusterForm();
+}
+
+function closeClusterMgr() { $('cm-mask').classList.remove('open'); }
+
+async function renderClusterList() {
+  try {
+    const d = await api('/clusters');
+    cmClusters = d.clusters;
+  } catch (e) {
+    $('cm-list').innerHTML = `<div class="cm-empty">加载失败: ${esc(e.message)}</div>`;
+    return;
+  }
+  $('cm-list').innerHTML = cmClusters.length ? cmClusters.map(c => `
+    <div class="cm-row ${c.name === currentCluster ? 'cur' : ''}">
+      <span class="cm-name">${esc(c.name)}</span>
+      <span class="cm-proto ${c.security_protocol === 'PLAINTEXT' ? '' : 'tls'}">${esc(c.security_protocol)}</span>
+      <span class="cm-addr" title="${esc(c.bootstrap_servers)}">${esc(c.bootstrap_servers)}</span>
+      <button class="ghost sm" data-edit="${esc(c.name)}">编辑</button>
+      <button class="danger sm" data-del="${esc(c.name)}">删除</button>
+    </div>`).join('') : '<div class="cm-empty">还没有配置集群，在下面表单里添加第一个</div>';
+}
+
+function syncAuthFields() {
+  const p = $('cf-protocol').value;
+  const needSasl = p.includes('SASL');
+  const needTls = p === 'SSL' || p === 'SASL_SSL';
+  document.querySelectorAll('.auth-sasl').forEach(el => el.classList.toggle('hide', !needSasl));
+  document.querySelectorAll('.auth-tls').forEach(el => el.classList.toggle('hide', !needTls));
+  // 新建时选了 SASL 却还没选机制，默认给 SCRAM-SHA-256（PLAIN 需要额外的 Cyrus SASL 库）
+  if (needSasl && !cmEditing && !$('cf-mech').value) $('cf-mech').value = 'SCRAM-SHA-256';
+}
+
+function loadClusterForm(name) {
+  const c = cmClusters.find(x => x.name === name);
+  if (!c) return;
+  cmEditing = name;
+  $('cf-name').value = c.name;
+  $('cf-name').readOnly = true;
+  $('cf-servers').value = c.bootstrap_servers;
+  $('cf-protocol').value = c.security_protocol;
+  $('cf-loglevel').value = c.log_level || '3';
+  $('cf-mech').value = c.sasl_mechanism || '';
+  $('cf-user').value = c.sasl_username || '';
+  $('cf-pass').value = '';
+  $('cf-pass').placeholder = c.has_sasl_password ? '已保存，留空则不修改' : '';
+  $('cf-ca').value = c.ssl_ca_location || '';
+  $('cf-cert').value = c.ssl_certificate_location || '';
+  $('cf-keyloc').value = c.ssl_key_location || '';
+  $('cf-keypass').value = '';
+  $('cf-keypass').placeholder = c.has_ssl_key_password ? '已保存，留空则不修改' : '';
+  syncAuthFields();
+  $('cm-msg').style.color = '#6b7280';
+  $('cm-msg').textContent = `正在编辑「${name}」`;
+}
+
+function clearClusterForm() {
+  cmEditing = null;
+  $('cf-name').readOnly = false;
+  ['cf-name', 'cf-servers', 'cf-user', 'cf-pass', 'cf-ca', 'cf-cert', 'cf-keyloc', 'cf-keypass']
+    .forEach(id => { $(id).value = ''; });
+  $('cf-protocol').value = 'PLAINTEXT';
+  $('cf-mech').value = '';
+  $('cf-loglevel').value = '3';
+  $('cf-pass').placeholder = '';
+  $('cf-keypass').placeholder = '';
+  syncAuthFields();
+  $('cm-msg').textContent = '';
+}
+
+function collectClusterBody() {
+  return {
+    name: $('cf-name').value.trim(),
+    bootstrap_servers: $('cf-servers').value.trim(),
+    security_protocol: $('cf-protocol').value,
+    sasl_mechanism: $('cf-mech').value || null,
+    sasl_username: $('cf-user').value.trim() || null,
+    sasl_password: $('cf-pass').value || null,
+    ssl_ca_location: $('cf-ca').value.trim() || null,
+    ssl_certificate_location: $('cf-cert').value.trim() || null,
+    ssl_key_location: $('cf-keyloc').value.trim() || null,
+    ssl_key_password: $('cf-keypass').value || null,
+    log_level: $('cf-loglevel').value.trim() || '3'
+  };
+}
+
+async function saveCluster() {
+  const body = collectClusterBody();
+  const msg = $('cm-msg');
+  if (!body.name) { msg.style.color = '#dc2626'; msg.textContent = '请填写集群名称'; return; }
+  if (!body.bootstrap_servers) { msg.style.color = '#dc2626'; msg.textContent = '请填写 bootstrap servers'; return; }
+  $('cm-save').disabled = true;
+  msg.style.color = '#6b7280'; msg.textContent = '保存中...';
+  try {
+    await api('/clusters', 'POST', body);
+    msg.style.color = '#059669'; msg.textContent = `已保存「${body.name}」，配置写入 config/clusters.json`;
+    await renderClusterList();
+    await refreshClusters(body.name);
+    await reloadForCluster();
+  } catch (e) {
+    msg.style.color = '#dc2626'; msg.textContent = '保存失败: ' + e.message;
+  } finally { $('cm-save').disabled = false; }
+}
+
+async function removeCluster(name) {
+  if (!confirm(`确定删除集群「${name}」？\n只会移除本工具的连接配置，不影响 Kafka 服务端。`)) return;
+  try {
+    await api('/clusters/' + encodeURIComponent(name), 'DELETE');
+    if (cmEditing === name) clearClusterForm();
+    await renderClusterList();
+    await refreshClusters();
+    await reloadForCluster();
+    $('cm-msg').style.color = '#059669';
+    $('cm-msg').textContent = `已删除「${name}」`;
+  } catch (e) {
+    $('cm-msg').style.color = '#dc2626';
+    $('cm-msg').textContent = '删除失败: ' + e.message;
+  }
+}
+
+async function testCluster() {
+  const body = collectClusterBody();
+  const msg = $('cm-msg');
+  if (!body.name) { msg.style.color = '#dc2626'; msg.textContent = '先填写集群名称再测试'; return; }
+  if (!body.bootstrap_servers) { msg.style.color = '#dc2626'; msg.textContent = '先填写 bootstrap servers 再测试'; return; }
+  msg.style.color = '#6b7280'; msg.textContent = '连接中...';
+  try {
+    const d = await api('/clusters/test', 'POST', body);
+    msg.style.color = '#059669';
+    msg.textContent = `连接成功：${d.brokers} 个 broker / ${d.topics} 个 topic，耗时 ${d.elapsed_ms} ms`;
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.textContent = '连接失败: ' + e.message;
+  }
+}
+
+$('btn-cluster-mgr').onclick = openClusterMgr;
+$('cm-close').onclick = closeClusterMgr;
+$('cm-clear').onclick = clearClusterForm;
+$('cm-save').onclick = saveCluster;
+$('cm-test').onclick = testCluster;
+$('cf-protocol').addEventListener('change', syncAuthFields);
+$('cm-mask').addEventListener('click', e => { if (e.target === $('cm-mask')) closeClusterMgr(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('cm-mask').classList.contains('open')) closeClusterMgr();
+});
+
+$('cm-list').addEventListener('click', e => {
+  const ed = e.target.dataset.edit;
+  const dl = e.target.dataset.del;
+  if (ed) loadClusterForm(ed);
+  else if (dl) removeCluster(dl);
+});
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+init();
+</script>
+</body>
+</html>

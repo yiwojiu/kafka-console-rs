@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - name: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # OpenSSL（ssl-vendored）与 librdkafka（cmake-build）都要就地编译，
+      # Windows 下必须先让 nmake / link.exe 进入 PATH 与 INCLUDE/LIB。
+      - name: Setup MSVC toolchain
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install build deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake perl pkg-config
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pkg = "kafka-console-rs-${{ matrix.name }}"
+          $root = "out/$pkg"
+          New-Item -ItemType Directory -Force -Path "$root/config" | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/kafka-console-rs.exe" "$root/"
+          Copy-Item -Recurse "static" "$root/static"
+          Copy-Item "config/clusters.example.toml" "$root/config/"
+          Copy-Item "README.md" "$root/"
+          Compress-Archive -Path "$root/*" -DestinationPath "out/$pkg.zip" -Force
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          pkg="kafka-console-rs-${{ matrix.name }}"
+          root="out/$pkg"
+          mkdir -p "$root/config"
+          cp "target/${{ matrix.target }}/release/kafka-console-rs" "$root/"
+          cp -r static "$root/static"
+          cp config/clusters.example.toml "$root/config/"
+          cp README.md "$root/"
+          tar -czf "out/$pkg.tar.gz" -C out "$pkg"
+
+      - name: Checksum
+        shell: bash
+        run: |
+          cd out
+          if command -v sha256sum > /dev/null; then
+            sha256sum "kafka-console-rs-${{ matrix.name }}.${{ matrix.archive }}" > SHA256SUMS.txt
+          else
+            shasum -a 256 "kafka-console-rs-${{ matrix.name }}.${{ matrix.archive }}" > SHA256SUMS.txt
+          fi
+          cat SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            out/*.${{ matrix.archive }}
+            out/SHA256SUMS.txt
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect assets
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          find artifacts -name 'SHA256SUMS.txt' -exec cat {} + | sort -u > dist/SHA256SUMS.txt
+          ls -lh dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false

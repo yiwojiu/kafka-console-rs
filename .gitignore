@@ -1,0 +1,10 @@
+/target
+*.pdb
+*.exe
+out/
+dist/
+
+# 页面端保存的集群配置（可能含明文密码），以及本地实际使用的配置文件
+config/clusters.json
+config/clusters.toml
+config/*.json.tmp
