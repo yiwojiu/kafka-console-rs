@@ -63,9 +63,14 @@ jobs:
 
       # cargo-zigbuild：用 zig 自带的 libc 做交叉编译，一条命令出 musl 二进制，
       # 不碰系统的 gcc / musl-gcc。
+      # 注意：ubuntu-latest 的 python 3.12+ 没有裸 pip，要用 python3 -m pip。
       - name: Install cargo-zigbuild (Linux)
         if: runner.os == 'Linux'
-        run: pipx install cargo-zigbuild || pip install --user cargo-zigbuild
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --no-cache-dir cargo-zigbuild
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cargo-zigbuild" --version
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -73,10 +78,7 @@ jobs:
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: |
-          # pipx 装到 ~/.local/bin，确保在 PATH 里
-          export PATH="$HOME/.local/bin:$PATH"
-          cargo zigbuild --release --locked --target ${{ matrix.target }}
+        run: cargo zigbuild --release --locked --target ${{ matrix.target }}
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
