@@ -58,12 +58,45 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake perl pkg-config musl-tools
-          # musl 目标需要 C 运行时：x64 上是 musl-gcc，arm64 runner 上有同名包装
-          which musl-gcc || true
-          musl-gcc --version | head -1 || true
+          musl-gcc --version | head -1
 
-      - name: Build
+      # musl 目标必须让 cc / cmake 都用 musl-gcc，否则 librdkafka 和 OpenSSL
+      # 会被按 glibc 编译，最后链接时报一堆 undefined reference。
+      - name: Point toolchain at musl
+        if: runner.os == 'Linux'
+        run: |
+          set -eu
+          t="${{ matrix.target }}"
+          u="${t//-/_}"
+          echo "CC_${u}=musl-gcc" >> "$GITHUB_ENV"
+          echo "AR_${u}=ar" >> "$GITHUB_ENV"
+          echo "RANLIB_${u}=ranlib" >> "$GITHUB_ENV"
+          upper=$(printf '%s' "$u" | tr 'a-z' 'A-Z')
+          echo "CARGO_TARGET_${upper}_LINKER=musl-gcc" >> "$GITHUB_ENV"
+          if command -v musl-g++ > /dev/null; then
+            echo "CXX_${u}=musl-g++" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
         run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee build.log
+          # 失败时把关键输出写进 Job Summary，方便在网页上直接看到原因
+          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            {
+              echo "### build ${{ matrix.name }} failed"
+              echo '```'
+              grep -v '^\s*Compiling ' build.log | tail -80
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
