@@ -51,6 +51,17 @@ pub async fn delete_cluster(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// 断开并释放某个集群的客户端连接（页面端切换集群时调用）。
+/// 只释放内存里的连接与 librdkafka 线程，不动落盘的配置。
+pub async fn disconnect_cluster(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    let released = state.disconnect_cluster(&name).await;
+    tracing::info!(cluster = %name, released, "集群连接已断开");
+    Ok(Json(serde_json::json!({ "ok": true, "released": released })))
+}
+
 /// 测试连通性：临时建一个客户端取 metadata，不影响已保存的配置
 pub async fn test_cluster(
     State(state): State<Arc<AppState>>,

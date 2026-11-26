@@ -65,6 +65,10 @@ async fn main() -> Result<()> {
         )
         .route("/clusters/test", post(handlers::test_cluster))
         .route("/clusters/{name}", delete(handlers::delete_cluster))
+        .route(
+            "/clusters/{name}/disconnect",
+            post(handlers::disconnect_cluster),
+        )
         .route("/overview", get(handlers::overview))
         .route("/brokers/{id}/configs", get(handlers::broker_configs))
         .route(

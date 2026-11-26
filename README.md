@@ -72,6 +72,7 @@ http://127.0.0.1:7755
 | `POST /api/clusters` | 新增/更新集群，body 同 `ClusterBody`；密码留空则沿用原值 |
 | `DELETE /api/clusters/{name}` | 删除集群连接配置（不影响服务端） |
 | `POST /api/clusters/test` | 测试连通性，返回 broker/topic 数与耗时 |
+| `POST /api/clusters/{name}/disconnect` | 断开并释放该集群的客户端连接（librdkafka 线程 + TCP），配置保留，下次访问自动重连 |
 | `GET /api/overview?cluster=local` | 集群概览（broker 拓扑、健康度、Top topic） |
 | `GET /api/brokers/{id}/configs?cluster=local` | broker 关键配置 |
 | `POST /api/messages` | 发送消息，body `{"cluster","topic","partition?","key?","value","headers?"}` |

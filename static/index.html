@@ -336,6 +336,18 @@ async function api(path, method, body) {
 function fmt(n) { return n == null ? '-' : n.toLocaleString('zh-CN'); }
 
 // 拉取集群列表并刷新下拉框；prefer 优先选中，否则尽量保留当前集群
+// 记住上次选中的集群：刷新页面后不要退回第一个
+const LS_CLUSTER = 'kafka-console.cluster';
+function recallCluster() {
+  try { return localStorage.getItem(LS_CLUSTER) || ''; } catch (_) { return ''; }
+}
+function rememberCluster(name) {
+  try {
+    if (name) localStorage.setItem(LS_CLUSTER, name);
+    else localStorage.removeItem(LS_CLUSTER);
+  } catch (_) {}
+}
+
 async function refreshClusters(prefer) {
   const d = await api('/clusters');
   const sel = $('cluster');
@@ -343,13 +355,18 @@ async function refreshClusters(prefer) {
   if (!d.clusters.length) {
     sel.innerHTML = '<option value="">（未配置集群）</option>';
     currentCluster = '';
+    rememberCluster('');
     return d.clusters;
   }
   sel.innerHTML = d.clusters.map(c => `<option value="${esc(c.name)}">${esc(c.name)} · ${esc(c.bootstrap_servers)}</option>`).join('');
-  let target = prefer && names.includes(prefer) ? prefer
-    : (names.includes(currentCluster) ? currentCluster : names[0]);
+  // 优先级：显式指定 > 上次记住的 > 当前选中的 > 列表第一个
+  const saved = recallCluster();
+  let target = (prefer && names.includes(prefer)) ? prefer
+    : (names.includes(saved) ? saved
+      : (names.includes(currentCluster) ? currentCluster : names[0]));
   sel.value = target;
   currentCluster = target;
+  rememberCluster(target);
   return d.clusters;
 }
 
@@ -394,9 +411,19 @@ async function ensurePanel(name) {
 }
 
 $('cluster').addEventListener('change', async e => {
+  const prev = currentCluster;
   currentCluster = e.target.value;
+  rememberCluster(currentCluster);
   await reloadForCluster();
+  // 切走之后把上一个集群的客户端连接释放掉（librdkafka 线程 + TCP 一起回收）
+  if (prev && prev !== currentCluster) disconnectCluster(prev);
 });
+
+// 后台静默断开，失败也不用打扰用户：下次用到这个集群会按配置自动重连
+function disconnectCluster(name) {
+  fetch('/api/clusters/' + encodeURIComponent(name) + '/disconnect', { method: 'POST' })
+    .catch(() => {});
+}
 
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', async () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));

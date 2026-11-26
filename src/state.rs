@@ -102,6 +102,19 @@ impl AppState {
         }
         Ok(removed)
     }
+
+    /// 断开某个集群的客户端连接：从缓存里摘掉并 drop。
+    /// Arc 引用归零后 librdkafka 会销毁 client，连带释放它的后台线程与 TCP 连接；
+    /// 之后再用到这个集群会按存储配置重新建连。落盘的配置不受影响。
+    pub async fn disconnect_cluster(&self, name: &str) -> bool {
+        match self.clusters.write().await.remove(name) {
+            Some(cluster) => {
+                drop(cluster);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// 返回给前端的集群信息：密码与私钥口令一律不回显，只标注是否已设置
