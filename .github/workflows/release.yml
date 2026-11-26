@@ -126,3 +126,19 @@ jobs:
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: false
+          body: |
+            Rust 实现的 Kafka 控制台，单二进制 Web 服务，无 JVM 依赖。
+
+            **包含**：概览 / Topic 管理 / 消费组积压 / 消息浏览（SSE 流式、持续监听）/ 在线发消息 /
+            页面端集群管理 / 积压位点重置。支持 PLAINTEXT、SSL、SASL_PLAINTEXT、SASL_SSL（OpenSSL 已静态链接）。
+
+            **下载后**：解压 → 进入目录 → 运行 `kafka-console-rs`（Windows 为 `.exe`）→ 浏览器打开
+            `http://127.0.0.1:7755` → 右上角「集群管理」填 Kafka 地址。
+
+            | 平台 | 包 |
+            |---|---|
+            | Windows x64 | `kafka-console-rs-windows-x64.zip` |
+            | Linux x64 | `kafka-console-rs-linux-x64.tar.gz` |
+            | Linux arm64 | `kafka-console-rs-linux-arm64.tar.gz` |
+
+            校验：`sha256sum -c SHA256SUMS.txt`（macOS 用 `shasum -a 256 -c`）。
