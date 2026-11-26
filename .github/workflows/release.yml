@@ -23,13 +23,15 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
+          # Linux 用 musl 静态链接：产出的二进制不依赖目标机的 glibc 版本，
+          # 老系统（CentOS 7 / 麒麟 V10 之类）也能直接跑。
           - name: linux-x64
             os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             archive: tar.gz
           - name: linux-arm64
             os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             archive: tar.gz
 
     steps:
@@ -55,7 +57,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake perl pkg-config
+          sudo apt-get install -y build-essential cmake perl pkg-config musl-tools
+          # musl 目标需要 C 运行时：x64 上是 musl-gcc，arm64 runner 上有同名包装
+          which musl-gcc || true
+          musl-gcc --version | head -1 || true
 
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
@@ -138,7 +143,9 @@ jobs:
             | 平台 | 包 |
             |---|---|
             | Windows x64 | `kafka-console-rs-windows-x64.zip` |
-            | Linux x64 | `kafka-console-rs-linux-x64.tar.gz` |
-            | Linux arm64 | `kafka-console-rs-linux-arm64.tar.gz` |
+            | Linux x64（musl 静态） | `kafka-console-rs-linux-x64.tar.gz` |
+            | Linux arm64（musl 静态） | `kafka-console-rs-linux-arm64.tar.gz` |
+
+            Linux 版为 musl 静态链接，不依赖目标机 glibc 版本（CentOS 7 / 麒麟 V10 等老系统可直接运行）。
 
             校验：`sha256sum -c SHA256SUMS.txt`（macOS 用 `shasum -a 256 -c`）。

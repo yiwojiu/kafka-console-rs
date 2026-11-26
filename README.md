@@ -30,6 +30,8 @@ Rust 实现的 Kafka 控制台工具，单二进制 Web 服务。基于 rdkafka�
 
 包内结构：可执行文件 + `static/`（前端页面，**必须和可执行文件放同一目录**）+ `config/clusters.example.toml`。OpenSSL 与 librdkafka 均已静态链进去，目标机不需要额外装任何库。
 
+Linux 版是 **musl 静态链接**，不依赖目标机的 glibc 版本：CentOS 7（glibc 2.17）、麒麟 / 统信之类老系统都能直接跑，不会出现 `GLIBC_2.xx not found`。
+
 ## 运行
 
 ```bash
@@ -97,8 +99,10 @@ http://127.0.0.1:7755
 | runner | target | 说明 |
 |---|---|---|
 | `windows-latest` | `x86_64-pc-windows-msvc` | 需 MSVC 工具链（`ilammy/msvc-dev-cmd` 负责进环境） |
-| `ubuntu-latest` | `x86_64-unknown-linux-gnu` | `cmake` + `perl` + `build-essential` |
-| `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | 原生 arm64 runner，不做交叉编译 |
+| `ubuntu-latest` | `x86_64-unknown-linux-musl` | 静态链接，不绑定 glibc |
+| `ubuntu-24.04-arm` | `aarch64-unknown-linux-musl` | 原生 arm64 runner + musl，不做交叉编译 |
+
+Linux 侧依赖：`build-essential`、`cmake`、`perl`、`musl-tools`。用 gnu target 编出来的二进制会绑定构建机的 glibc（Ubuntu 24.04 = glibc 2.39），在老系统上直接报 `GLIBC_2.xx not found`，所以这里一律走 musl。
 
 本地构建：
 
