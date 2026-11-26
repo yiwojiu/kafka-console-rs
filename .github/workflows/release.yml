@@ -85,17 +85,22 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -o pipefail
+          # 注意：Actions 的 bash 默认带 -e -o pipefail，失败会立即中断脚本，
+          # 所以这里先 set +e 关掉，拿到退出码后才能上报错误。
+          set +e
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee build.log
-          # 失败时把关键输出写进 Job Summary，方便在网页上直接看到原因
-          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+          st="${PIPESTATUS[0]}"
+          if [ "$st" -ne 0 ]; then
+            excerpt=$(grep -v -e '^\s*Compiling ' -e '^\s*Downloaded ' build.log | tail -100)
             {
               echo "### build ${{ matrix.name }} failed"
               echo '```'
-              grep -v '^\s*Compiling ' build.log | tail -80
+              printf '%s\n' "$excerpt"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+            gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+              -f body="$(printf 'build %s failed\n```\n%s\n```' '${{ matrix.name }}' "$excerpt")" > /dev/null || true
+            exit "$st"
           fi
 
       - name: Package (Windows)
