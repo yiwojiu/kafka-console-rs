@@ -104,6 +104,8 @@ jobs:
           cp -r static "$root/static"
           cp config/clusters.example.toml "$root/config/"
           cp README.md "$root/"
+          cp scripts/start.sh scripts/stop.sh "$root/"
+          chmod +x "$root/kafka-console-rs" "$root/start.sh" "$root/stop.sh"
           tar -czf "out/$pkg.tar.gz" -C out "$pkg"
 
       - name: Checksum

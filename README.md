@@ -48,6 +48,44 @@ http://127.0.0.1:7755
 
 服务会把当前工作目录当作根目录，`static/` 是从 **cwd** 找的，所以请在解压出来的目录里启动。
 
+### Linux 后台运行（start.sh / stop.sh）
+
+发行包的 Linux 版自带两个脚本，都在可执行文件同目录：
+
+```bash
+tar -xzf kafka-console-rs-linux-x64.tar.gz
+cd kafka-console-rs-linux-x64
+./start.sh                     # 后台启动，默认 0.0.0.0:7755
+KAFKA_CONSOLE_LISTEN=0.0.0.0:8080 ./start.sh   # 换端口
+./stop.sh                      # 先 SIGTERM，10 秒没退再 SIGKILL
+./stop.sh 30                   # 自定义等待秒数
+
+tail -f logs/kafka-console.log # 日志
+```
+
+| 脚本 | 行为 |
+|---|---|
+| `start.sh` | 检查可执行文件与 `static/`；有旧 PID 且进程还在就拒绝重复启动；`nohup` 后台起；PID 写 `kafka-console.pid`；日志追加到 `logs/kafka-console.log`（带启动分隔标记）；最多 10 秒探活 `/api/health`，失败时打印日志尾部并非零退出 |
+| `stop.sh` | 按 `kafka-console.pid` 精确停止，不误杀其它进程；pid 文件丢失时按可执行文件绝对路径兜底查找；`SIGTERM` 不退出则 `SIGKILL` |
+
+开机自启（systemd）：
+
+```ini
+# /etc/systemd/system/kafka-console.service
+[Unit]
+Description=kafka-console-rs
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/kafka-console-rs-linux-x64
+ExecStart=/opt/kafka-console-rs-linux-x64/kafka-console-rs
+Restart=on-failure
+Environment=KAFKA_CONSOLE_LISTEN=0.0.0.0:7755
+
+[Install]
+WantedBy=multi-user.target
+```
+
 集群连接不需要改任何文件：启动后在页面右上角「集群管理」里填地址、协议、认证信息，保存即生效。
 
 | 环境变量 | 默认值 | 说明 |
